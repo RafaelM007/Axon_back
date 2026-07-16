@@ -101,7 +101,7 @@ const userController = {
                     id: user._id,
                     name: user.name,
                     email: user.email,
-                    profileImage: user.profileImage,
+                    profileImage: user.profileImage.url,
                     isVerified: user.isVerified
                 }
             });
@@ -133,7 +133,7 @@ const userController = {
                     email: user.email,
                     birthDate: user.birthDate,
                     phone: user.phone,
-                    profileImage: user.profileImage,
+                    profileImage: user.profileImage.url,
                     isVerified: user.isVerified
                 }
             });
@@ -163,6 +163,7 @@ const userController = {
                 });
             }
 
+
             const updatedUser = await User.findByIdAndUpdate(
                 req.user.id,
                 updateData,
@@ -186,7 +187,7 @@ const userController = {
                     email: updatedUser.email,
                     birthDate: updatedUser.birthDate,
                     phone: updatedUser.phone,
-                    profileImage: updatedUser.profileImage,
+                    profileImage: updatedUser.profileImage.url,
                     isVerified: updatedUser.isVerified
                 }
             });
@@ -209,6 +210,16 @@ const userController = {
                 });
             }
 
+            const user = await User.findById(req.user.id);
+
+            if (!user) {
+                return res.status(404).json({
+                    message: "Usuário não encontrado."
+                });
+            }
+
+            
+
             const result = await new Promise((resolve, reject) => {
                 const stream = cloudinary.uploader.upload_stream(
                     {
@@ -226,11 +237,22 @@ const userController = {
                 streamifier.createReadStream(req.file.buffer).pipe(stream);
             });
 
+            try {
+                if (user.profileImage?.publicId) {
+                    await cloudinary.uploader.destroy(user.profileImage.publicId);
+                }
+            } catch (error) {
+                console.error("Erro ao remover imagem antiga:", error);
+            }
+
             const updatedUser = await User.findByIdAndUpdate(
 
                 req.user.id,
                 {
-                    profileImage: result.secure_url
+                    profileImage: {
+                        url: result.secure_url,
+                        publicId: result.public_id
+                    }
                 },
                 {
                     new: true
@@ -245,8 +267,10 @@ const userController = {
 
             return res.status(200).json({
                 message: "Foto de perfil atualizada com sucesso.",
-                profileImage: updatedUser.profileImage
+                profileImage: updatedUser.profileImage.url
             });
+
+            
 
         } catch (error) {
             console.error(error);
