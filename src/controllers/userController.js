@@ -1,5 +1,7 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const streamifier = require("streamifier");
+const cloudinary = require("../config/cloudinary");
 const User = require("../models/User");
 
 const userController = {
@@ -196,7 +198,67 @@ const userController = {
                 message: "Erro interno do servidor."
             });
         }
+    },
+
+
+    async updateProfileImage(req, res) {
+        try {
+            if (!req.file) {
+                return res.status(400).json({
+                    message: "Nenhuma imagem foi enviada."
+                });
+            }
+
+            const result = await new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    {
+                        folder: "axon/profile-images"
+                    },
+                    (error, result) => {
+                        if (error) {
+                            return reject(error);
+                        }
+
+                        resolve(result);
+                    }
+                );
+
+                streamifier.createReadStream(req.file.buffer).pipe(stream);
+            });
+
+            const updatedUser = await User.findByIdAndUpdate(
+
+                req.user.id,
+                {
+                    profileImage: result.secure_url
+                },
+                {
+                    new: true
+                }
+            );
+
+            if (!updatedUser) {
+                return res.status(404).json({
+                    message: "Usuário não encontrado."
+                });
+            }
+
+            return res.status(200).json({
+                message: "Foto de perfil atualizada com sucesso.",
+                profileImage: updatedUser.profileImage
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            return res.status(500).json({
+                message: "Erro interno do servidor."
+            });
+        }
     }
+
+
+
 };
 
 module.exports = userController;
