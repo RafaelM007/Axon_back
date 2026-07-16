@@ -143,6 +143,59 @@ const userController = {
                 message: "Erro interno do servidor."
             });
         }
+    },
+
+    async updateProfile(req, res) {
+        try {
+            const { name, phone, birthDate } = req.body;
+
+            const updateData = {};
+
+            if (name) updateData.name = name;
+            if (phone) updateData.phone = phone;
+            if (birthDate) updateData.birthDate = birthDate;
+
+            if (Object.keys(updateData).length === 0) {
+                return res.status(400).json({
+                    message: "Nenhum dado foi enviado para atualização."
+                });
+            }
+
+            const updatedUser = await User.findByIdAndUpdate(
+                req.user.id,
+                updateData,
+                {
+                    new: true,
+                    runValidators: true
+                }
+            );
+
+            if (!updatedUser) {
+                return res.status(404).json({
+                    message: "Usuário não encontrado."
+                });
+            }
+
+            return res.status(200).json({
+                message: "Perfil atualizado com sucesso.",
+                user: {
+                    id: updatedUser._id,
+                    name: updatedUser.name,
+                    email: updatedUser.email,
+                    birthDate: updatedUser.birthDate,
+                    phone: updatedUser.phone,
+                    profileImage: updatedUser.profileImage,
+                    isVerified: updatedUser.isVerified
+                }
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            return res.status(500).json({
+                message: "Erro interno do servidor."
+            });
+        }
     }
 };
 
