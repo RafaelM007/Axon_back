@@ -16,6 +16,13 @@ const userController = {
                 });
             }
 
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+            if (!passwordRegex.test(password)) {
+                return res.status(400).json({
+                    message: "A senha deve possuir pelo menos 8 caracteres, uma letra maiúscula, uma minúscula e um número."
+                });
+            }
+
             const existingUser = await User.findOne({ email });
 
 
@@ -279,8 +286,81 @@ const userController = {
                 message: "Erro interno do servidor."
             });
         }
-    }
+    },
 
+
+    async changePassword(req, res) {
+        try {
+            const {
+                currentPassword,
+                newPassword,
+                confirmPassword
+            } = req.body;
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                return res.status(400).json({
+                    message: "Todos os campos são obrigatórios."
+                });
+            }
+            
+            if (currentPassword === newPassword) {
+                return res.status(400).json({
+                    message: "A nova senha deve ser diferente da senha atual."
+                });
+            }
+            const passwordRegex =
+            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+            if (!passwordRegex.test(newPassword)) {
+                return res.status(400).json({
+                    message:
+                        "A senha deve possuir pelo menos 8 caracteres, uma letra maiúscula, uma minúscula e um número."
+                });
+            }
+
+            if (newPassword !== confirmPassword) {
+                return res.status(400).json({
+                    message: "A confirmação da senha não confere."
+                });
+            }
+
+            const user = await User.findById(req.user.id).select("+password");
+
+            if (!user) {
+                return res.status(404).json({
+                    message: "Usuário não encontrado."
+                });
+            }
+
+            const passwordMatch = await bcrypt.compare(
+                currentPassword,
+                user.password
+            );
+
+            if (!passwordMatch) {
+                return res.status(401).json({
+                    message: "Senha atual incorreta."
+                });
+            }
+
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+            user.password = hashedPassword;
+
+            await user.save();
+
+            return res.status(200).json({
+                message: "Senha alterada com sucesso."
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            return res.status(500).json({
+                message: "Erro interno do servidor."
+            });
+        }
+    }
 
 
 };
