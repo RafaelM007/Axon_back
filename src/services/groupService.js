@@ -1,138 +1,158 @@
 const Group = require("../models/Group");
 const bcrypt = require("bcrypt");
 
-// 1. CRIAR GRUPO (Mantendo sua lógica original, mas exportada certinho)
+// 1. CRIAR GRUPO
 const createGroupService = async (groupData, userId) => {
-  // Lógica que você já tinha implementado para criar o grupo...
-  // (Gera o código AXON-XXXX, define o creator e insere nos members)
+  if (!groupData.name || groupData.name.trim() === "") {
+    throw new Error("O nome do grupo é obrigatório.");
+  }
+
+  const code =
+    groupData.code || `AXON-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // NÃO faz hash aqui.
+  // O Model Group já faz isso automaticamente.
+
+  const newGroup = await Group.create({
+    ...groupData,
+    code,
+    creator: userId,
+    members: [userId],
+  });
+
+  return newGroup;
 };
 
-// 2. BUSCAR DETALHES (Sua lógica original com populate)
-const getGroupDetailsService = async (groupId) => {
+// 2. BUSCAR DETALHES
+const getGroupDetailsService = async (groupId, userId) => {
   const group = await Group.findById(groupId)
     .populate("members", "name email")
     .populate("creator", "name email");
+
   if (!group) {
-    const error = new Error("Grupo não encontrado.");
-    error.statusCode = 404;
+    throw new Error("Grupo não encontrado.");
+  }
+
+  const isMember = group.members.some(
+    (member) => member._id.toString() === userId.toString(),
+  );
+
+  if (!isMember) {
+    const error = new Error("Acesso negado: Você não participa deste grupo.");
+    error.statusCode = 403;
     throw error;
   }
+
   return group;
 };
 
-// 3. ENTRAR NO GRUPO (Perfeito, igual você mandou)
+// 3. ENTRAR NO GRUPO
 const joinGroupService = async (code, password, userId) => {
   const group = await Group.findOne({ code }).select("+password");
 
   if (!group) {
-    const error = new Error("Grupo não encontrado.");
-    error.statusCode = 404;
-    throw error;
+    throw new Error("Grupo não encontrado.");
   }
 
-  const isMatch = await bcrypt.compare(password, group.password);
-  if (!isMatch) {
-    const error = new Error("Senha do grupo incorreta.");
-    error.statusCode = 401;
-    throw error;
+  if (group.password) {
+    const isMatch = await bcrypt.compare(password, group.password);
+
+    if (!isMatch) {
+      throw new Error("Senha incorreta.");
+    }
   }
 
-  if (group.members.includes(userId)) {
-    const error = new Error("Você já faz parte deste grupo.");
-    error.statusCode = 400;
-    throw error;
+  const alreadyMember = group.members.some(
+    (member) => member.toString() === userId.toString(),
+  );
+
+  if (alreadyMember) {
+    throw new Error("Você já faz parte deste grupo.");
   }
 
   if (group.members.length >= group.maxMembers) {
-    const error = new Error(
-      "Este grupo já atingiu o limite máximo de membros.",
-    );
-    error.statusCode = 400;
-    throw error;
+    throw new Error("Grupo lotado.");
   }
 
   group.members.push(userId);
+
   await group.save();
+
   return group;
 };
 
-// 4. EXCLUIR GRUPO (Perfeito, igual você mandou)
+// 4. EXCLUIR GRUPO
 const deleteGroupService = async (groupId, userId) => {
   const group = await Group.findById(groupId);
 
   if (!group) {
-    const error = new Error("Grupo não encontrado.");
-    error.statusCode = 404;
-    throw error;
+    throw new Error("Grupo não encontrado.");
   }
 
   if (group.creator.toString() !== userId.toString()) {
-    const error = new Error(
-      "Apenas o administrador/criador do grupo pode excluí-lo.",
-    );
-    error.statusCode = 403;
-    throw error;
+    throw new Error("Apenas o criador pode excluir o grupo.");
   }
 
   await Group.findByIdAndDelete(groupId);
-  return { message: "Grupo excluído com sucesso." };
+
+  return {
+    message: "Grupo excluído com sucesso.",
+  };
 };
 
-// 5. NOVA: SAIR DO GRUPO (Regra: O criador não pode simplesmente sair, tem que excluir)
+// 5. SAIR DO GRUPO
 const leaveGroupService = async (groupId, userId) => {
   const group = await Group.findById(groupId);
 
   if (!group) {
-    const error = new Error("Grupo não encontrado.");
-    error.statusCode = 404;
-    throw error;
+    throw new Error("Grupo não encontrado.");
   }
 
   if (group.creator.toString() === userId.toString()) {
-    const error = new Error(
-      "O criador não pode sair do grupo. Você deve excluir o grupo ou transferir a liderança.",
-    );
-    error.statusCode = 400;
-    throw error;
+    throw new Error("O criador não pode sair do grupo.");
   }
 
-  if (!group.members.includes(userId)) {
-    const error = new Error("Você não faz parte deste grupo.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  // Remove o ID do usuário do array de membros
   group.members = group.members.filter(
-    (memberId) => memberId.toString() !== userId.toString(),
+    (member) => member.toString() !== userId.toString(),
   );
+
   await group.save();
-  return { message: "Você saiu do grupo com sucesso." };
+
+  return {
+    message: "Você saiu do grupo com sucesso.",
+  };
 };
 
-// 6. NOVA: EDITAR GRUPO (Apenas o Admin pode alterar nome/descrição)
+// 6. EDITAR GRUPO
 const updateGroupService = async (groupId, userId, updateData) => {
+  if (updateData.name && updateData.name.trim() === "") {
+    throw new Error("Nome inválido.");
+  }
+
   const group = await Group.findById(groupId);
 
   if (!group) {
-    const error = new Error("Grupo não encontrado.");
-    error.statusCode = 404;
-    throw error;
+    throw new Error("Grupo não encontrado.");
   }
 
   if (group.creator.toString() !== userId.toString()) {
-    const error = new Error(
-      "Apenas o administrador pode editar as informações do grupo.",
-    );
-    error.statusCode = 403;
-    throw error;
+    throw new Error("Apenas o criador pode editar o grupo.");
   }
 
-  // Atualiza apenas os campos permitidos (nome e descrição)
-  if (updateData.name) group.name = updateData.name;
-  if (updateData.description) group.description = updateData.description;
+  if (updateData.name) {
+    group.name = updateData.name;
+  }
+
+  if (updateData.description) {
+    group.description = updateData.description;
+  }
+
+  if (updateData.maxMembers) {
+    group.maxMembers = updateData.maxMembers;
+  }
 
   await group.save();
+
   return group;
 };
 
