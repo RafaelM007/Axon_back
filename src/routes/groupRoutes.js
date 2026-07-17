@@ -1,15 +1,24 @@
 const express = require("express");
 const router = express.Router();
-const authMiddleware = require("../middleware/authMiddleware");
 const groupController = require("../controllers/groupController");
+const authMiddleware = require("../middleware/authMiddleware"); // Caminho 100% correto agora!
 
-// Rota para criar grupos
+// Criar um novo grupo
 router.post("/create", authMiddleware, groupController.createGroup);
 
-// Rota para entrar em um grupo existente
+// Entrar em um grupo existente
 router.post("/join", authMiddleware, groupController.joinGroup);
 
-// NOVA ROTA: Buscar detalhes de um grupo específico por ID
+// Detalhes de um grupo específico
 router.get("/:id", authMiddleware, groupController.getGroupDetails);
+
+// Excluir um grupo (Apenas criador)
+router.delete("/:id", authMiddleware, groupController.deleteGroup);
+
+// Sair de um grupo
+router.delete("/:id/leave", authMiddleware, groupController.leaveGroup);
+
+// Editar informações do grupo (Apenas criador)
+router.put("/:id", authMiddleware, groupController.updateGroup);
 
 module.exports = router;
