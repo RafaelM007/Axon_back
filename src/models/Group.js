@@ -12,10 +12,24 @@ const groupSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  // 🔥 NOVO FORMATO: Array de membros com ID do usuário e sua pontuação no grupo
+  members: [
+    {
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      points: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+    },
+  ],
 });
 
-// A versão correta, sem o 'next' nos argumentos:
+// Preserva o hook de senha pré-existente
 groupSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
   const salt = await bcrypt.genSalt(10);

@@ -1,7 +1,7 @@
 const Group = require("../models/Group");
 const bcrypt = require("bcrypt");
 
-// 1. CRIAR GRUPO
+
 const createGroupService = async (groupData, userId) => {
   if (!groupData.name || groupData.name.trim() === "") {
     throw new Error("O nome do grupo é obrigatório.");
@@ -10,31 +10,31 @@ const createGroupService = async (groupData, userId) => {
   const code =
     groupData.code || `AXON-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // NÃO faz hash aqui.
-  // O Model Group já faz isso automaticamente.
-
+  
   const newGroup = await Group.create({
     ...groupData,
     code,
     creator: userId,
-    members: [userId],
+    members: [{ user: userId, points: 0 }],
   });
 
   return newGroup;
 };
 
-// 2. BUSCAR DETALHES
+
 const getGroupDetailsService = async (groupId, userId) => {
+  
   const group = await Group.findById(groupId)
-    .populate("members", "name email")
+    .populate("members.user", "name email profileImage")
     .populate("creator", "name email");
 
   if (!group) {
     throw new Error("Grupo não encontrado.");
   }
 
+  
   const isMember = group.members.some(
-    (member) => member._id.toString() === userId.toString(),
+    (member) => member.user && member.user._id.toString() === userId.toString()
   );
 
   if (!isMember) {
@@ -46,7 +46,7 @@ const getGroupDetailsService = async (groupId, userId) => {
   return group;
 };
 
-// 3. ENTRAR NO GRUPO
+
 const joinGroupService = async (code, password, userId) => {
   const group = await Group.findOne({ code }).select("+password");
 
@@ -62,8 +62,9 @@ const joinGroupService = async (code, password, userId) => {
     }
   }
 
+  
   const alreadyMember = group.members.some(
-    (member) => member.toString() === userId.toString(),
+    (member) => member.user && member.user.toString() === userId.toString()
   );
 
   if (alreadyMember) {
@@ -74,14 +75,15 @@ const joinGroupService = async (code, password, userId) => {
     throw new Error("Grupo lotado.");
   }
 
-  group.members.push(userId);
+  
+  group.members.push({ user: userId, points: 0 });
 
   await group.save();
 
   return group;
 };
 
-// 4. EXCLUIR GRUPO
+
 const deleteGroupService = async (groupId, userId) => {
   const group = await Group.findById(groupId);
 
@@ -100,7 +102,7 @@ const deleteGroupService = async (groupId, userId) => {
   };
 };
 
-// 5. SAIR DO GRUPO
+
 const leaveGroupService = async (groupId, userId) => {
   const group = await Group.findById(groupId);
 
@@ -112,8 +114,9 @@ const leaveGroupService = async (groupId, userId) => {
     throw new Error("O criador não pode sair do grupo.");
   }
 
+  // Filtra comparando a propriedade member.user
   group.members = group.members.filter(
-    (member) => member.toString() !== userId.toString(),
+    (member) => member.user && member.user.toString() !== userId.toString()
   );
 
   await group.save();
@@ -123,7 +126,7 @@ const leaveGroupService = async (groupId, userId) => {
   };
 };
 
-// 6. EDITAR GRUPO
+
 const updateGroupService = async (groupId, userId, updateData) => {
   if (updateData.name && updateData.name.trim() === "") {
     throw new Error("Nome inválido.");
