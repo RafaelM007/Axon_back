@@ -6,32 +6,43 @@ const taskSchema = new mongoose.Schema(
       type: String,
       required: [true, "O título da tarefa é obrigatório."],
       trim: true,
-      maxlength: [100, "O título deve ter no máximo 100 caracteres."],
+      minlength: [3, "O título deve ter no mínimo 3 caracteres."],
+      maxlength: [100, "O título deve ter no máximo 100 caracteres."]
     },
-    completed: {
-      type: Boolean,
-      default: false,
-    },
-    status: {
+
+    description: {
       type: String,
-      enum: ["Pendente", "Aceita", "Contestada", "Concluída"],
-      default: "Pendente",
-      required: true,
+      default: "",
+      trim: true,
+      maxlength: [500, "A descrição deve ter no máximo 500 caracteres."]
     },
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+
+    points: {
+      type: Number,
+      default: 10,
+      min: [0, "A pontuação não pode ser negativa."]
     },
+
+    deadline: {
+      type: Date,
+      default: null
+    },
+
     group: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Group",
-      required: true, // Garante que toda tarefa do Axon pertença a um grupo de foco
+      required: true
     },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    }
   },
   {
-    timestamps: true,
-  },
+    timestamps: true
+  }
 );
 
 module.exports = mongoose.model("Task", taskSchema);

@@ -8,7 +8,14 @@ const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 // 1. Criar tarefa
 const createTask = async (req, res) => {
   try {
-    const { title, group, points } = req.body;
+
+    const { title, description, group, points, deadline } = req.body;
+
+    if (points !== undefined && isNaN(Number(points))) {
+      return res.status(400).json({
+        message: "Pontuação inválida.",
+      });
+    }
 
     if (!title || !group) {
       return res.status(400).json({
@@ -38,9 +45,10 @@ const createTask = async (req, res) => {
 
     const task = await Task.create({
       title,
+      description,
       group,
-      user: userId,
-      points: points !== undefined ? points : 10,
+      points: points !== undefined ? Number(points) : 10,
+      deadline: deadline || null,
     });
 
     return res.status(201).json(task);
@@ -54,21 +62,39 @@ const createTask = async (req, res) => {
 // 2. Listar tarefas do usuário
 const getTasks = async (req, res) => {
   try {
+
     const userId = req.user.id || req.user._id;
     const { groupId } = req.query;
 
-    const queryFilter = { user: userId };
+    const queryFilter = {};
 
     if (groupId) {
-      if (!isValidObjectId(groupId)) {
-        return res.status(400).json({
-          message: "ID de grupo inválido.",
+
+        if (!isValidObjectId(groupId)) {
+            return res.status(400).json({
+                message: "ID de grupo inválido."
+            });
+        }
+
+        const groupExists = await Group.findOne({
+            _id: groupId,
+            $or: [
+                { creator: userId },
+                { "members.user": userId }
+            ]
         });
-      }
-      queryFilter.group = groupId;
+
+        if (!groupExists) {
+            return res.status(403).json({
+                message: "Você não pertence a este grupo."
+            });
+        }
+
+        queryFilter.group = groupId;
     }
 
-    const tasks = await Task.find(queryFilter);
+const tasks = await Task.find(queryFilter);
+
 
     return res.status(200).json(tasks);
   } catch (error) {
@@ -78,7 +104,7 @@ const getTasks = async (req, res) => {
   }
 };
 
-// 3. Atualizar dados gerais da tarefa
+// 3. Atualizar dados gerais da tarefa (com suporte a Foto)
 const updateTask = async (req, res) => {
   try {
     const { id } = req.params;
@@ -90,7 +116,13 @@ const updateTask = async (req, res) => {
     }
 
     const userId = req.user.id || req.user._id;
-    const { title } = req.body;
+    const { title, description, deadline, points } = req.body;
+
+    if (points !== undefined && isNaN(Number(points))) {
+      return res.status(400).json({
+        message: "Pontuação inválida.",
+      });
+    }
 
     const task = await Task.findById(id);
 
@@ -100,15 +132,34 @@ const updateTask = async (req, res) => {
       });
     }
 
-    if (task.user.toString() !== userId.toString()) {
-      return res.status(403).json({
-        message:
-          "Acesso negado. Você só pode alterar tarefas de sua autoria.",
-      });
+    const group = await Group.findById(task.group);
+
+    if (!group) {
+        return res.status(404).json({
+            message: "Grupo não encontrado."
+        });
+    }
+
+    if (group.creator.toString() !== userId.toString()) {
+        return res.status(403).json({
+            message: "Somente o administrador do grupo pode editar tarefas."
+        });
     }
 
     if (title) {
       task.title = title;
+    }
+
+    if (description !== undefined) {
+      task.description = description;
+    }
+
+    if (deadline !== undefined) {
+      task.deadline = deadline;
+    }
+
+    if (points !== undefined) {
+      task.points = Number(points);
     }
 
     await task.save();
@@ -121,7 +172,7 @@ const updateTask = async (req, res) => {
   }
 };
 
-// 4. Excluir tarefa
+// 4. Excluir tarefa (e apagar imagem do Cloudinary se existir)
 const deleteTask = async (req, res) => {
   try {
     const { id } = req.params;
@@ -141,14 +192,21 @@ const deleteTask = async (req, res) => {
       });
     }
 
-    if (task.user.toString() !== userId.toString()) {
-      return res.status(403).json({
-        message:
-          "Acesso negado. Você só pode excluir tarefas de sua autoria.",
-      });
+    const group = await Group.findById(task.group);
+
+    if (!group) {
+        return res.status(404).json({
+            message: "Grupo não encontrado."
+        });
     }
 
-    await task.deleteOne();
+    if (group.creator.toString() !== userId.toString()) {
+        return res.status(403).json({
+            message: "Somente o administrador pode excluir tarefas."
+        });
+    } 
+
+    await Task.findByIdAndDelete(id);
 
     return res.status(200).json({
       message: "Tarefa excluída com sucesso.",
@@ -160,8 +218,8 @@ const deleteTask = async (req, res) => {
   }
 };
 
-// 5. Atualizar status e atribuir/remover pontuação no Grupo
-const updateStatus = async (req, res) => {
+// Listar todas as submissões de uma tarefa
+const getTaskSubmissions = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -171,16 +229,10 @@ const updateStatus = async (req, res) => {
       });
     }
 
-    const { status } = req.body;
-
-    if (!status) {
-      return res.status(400).json({
-        message: "O status é obrigatório.",
-      });
-    }
-
     const userId = req.user.id || req.user._id;
-    const task = await Task.findById(id);
+
+    const task = await Task.findById(id)
+      .populate("submissions.user", "name email profileImage");
 
     if (!task) {
       return res.status(404).json({
@@ -188,48 +240,28 @@ const updateStatus = async (req, res) => {
       });
     }
 
-    if (task.user.toString() !== userId.toString()) {
+    // Verifica se o usuário pertence ao grupo
+    const group = await Group.findOne({
+      _id: task.group,
+      $or: [
+        { creator: userId },
+        { "members.user": userId },
+      ],
+    });
+
+    if (!group) {
       return res.status(403).json({
-        message:
-          "Acesso negado. Você não tem permissão para alterar esta tarefa.",
+        message: "Você não pertence a este grupo.",
       });
     }
 
-    const previousStatus = task.status;
-    task.status = status;
-    task.completed = status === "Concluída";
-
-    await task.save();
-
-    const taskPoints = Number(task.points) || 10;
-
-    // 🔥 ATUALIZAÇÃO SEGURA DA PONTUAÇÃO DO MEMBRO NO GRUPO
-    if (task.group) {
-      const group = await Group.findById(task.group);
-
-      if (group) {
-        // Encontra o membro no array 'members' comparando os IDs
-        const member = group.members.find(
-          (m) => m.user && m.user.toString() === userId.toString()
-        );
-
-        if (member) {
-          if (status === "Concluída" && previousStatus !== "Concluída") {
-            member.points = (member.points || 0) + taskPoints;
-          } else if (previousStatus === "Concluída" && status !== "Concluída") {
-            member.points = Math.max(0, (member.points || 0) - taskPoints);
-          }
-
-          // Avisa o Mongoose que o array interno de objetos mudou e salva
-          group.markModified("members");
-          await group.save();
-        }
-      }
-    }
-
-    return res.status(200).json(task);
+    return res.status(200).json({
+      taskId: task._id,
+      title: task.title,
+      submissions: task.submissions,
+    });
   } catch (error) {
-    return res.status(400).json({
+    return res.status(500).json({
       message: error.message,
     });
   }
@@ -240,5 +272,4 @@ module.exports = {
   getTasks,
   updateTask,
   deleteTask,
-  updateStatus,
 };
