@@ -21,6 +21,6 @@ router.post("/", upload.single("image"), createTask);
 router.get("/", getTasks);
 router.put("/:id", upload.single("image"), updateTask);
 router.delete("/:id", deleteTask);
-router.patch("/:id/status", updateStatus);
+//router.patch("/:id/status", updateStatus);
 
 module.exports = router;

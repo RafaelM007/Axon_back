@@ -6,6 +6,8 @@ const User = require("../models/User");
 
 const userController = {
 
+    // 1. Criar usuário
+
     async register(req, res) {
         try {
             const { name, email, birthDate, phone, password } = req.body;
@@ -65,6 +67,7 @@ const userController = {
         }
     },
 
+    // 2. Login
 
     async login(req, res) {
         try {
@@ -122,6 +125,7 @@ const userController = {
         }
     },
 
+    // 3. Buscar perfil
 
     async getProfile(req, res) {
         try {
@@ -153,6 +157,8 @@ const userController = {
             });
         }
     },
+
+    // 4. Atualizar perfil
 
     async updateProfile(req, res) {
         try {
@@ -208,6 +214,7 @@ const userController = {
         }
     },
 
+    // 5. Atualizar foto de perfil
 
     async updateProfileImage(req, res) {
         try {
@@ -288,7 +295,8 @@ const userController = {
         }
     },
 
-
+    // 6. Alterar senha
+    
     async changePassword(req, res) {
         try {
             const {

@@ -25,12 +25,12 @@ router.get("/", getTasks);
 router.put("/:id", upload.single("image"), updateTask);
 
 // Remover minha evidência
-router.delete("/:id/submission", deleteSubmission);
+//router.delete("/:id/submission", deleteSubmission);
 
 // Contestar uma evidência
-router.patch("/:id/contest", contestTask);
+//router.patch("/:id/contest", contestTask);
 
 // Listar todas as evidências da tarefa
-router.get("/:id/submissions", getTaskSubmissions);
+//router.get("/:id/submissions", getTaskSubmissions);
 
 module.exports = router;
