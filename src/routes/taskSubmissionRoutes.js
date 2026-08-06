@@ -19,7 +19,7 @@ router.use(authMiddleware);
 router.post("/", createTask);
 
 // Listar tarefas
-router.get("/", getTasks);
+// router.get("/", getTasks); 
 
 // Enviar evidência da tarefa
 router.put("/:id", upload.single("image"), updateTask);

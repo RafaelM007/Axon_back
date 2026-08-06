@@ -3,6 +3,7 @@ const express = require("express");
 const userRoutes = require("./routes/userRoutes");
 const groupRoutes = require("./routes/groupRoutes"); 
 const taskRoutes = require("./routes/taskRoutes"); 
+
 const rankingRoutes = require("./routes/rankingRoutes"); // 1. Importa as rotas de ranking
 const taskSubmissionRoutes = require("./routes/taskSubmissionRoutes");
 

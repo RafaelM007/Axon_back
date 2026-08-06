@@ -2,274 +2,438 @@ const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const Group = require("../models/Group");
 
-// Helper para validar ObjectId
-const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+// criar uma nova tarefa
 
-// 1. Criar tarefa
 const createTask = async (req, res) => {
-  try {
+    try {
+        const {
+            title,
+            description,
+            points,
+            group,
+            startsAt,
+            deadline,
+            isRecurring,
+            recurrence
+        } = req.body;
 
-    const { title, description, group, points, deadline } = req.body;
-
-    if (points !== undefined && isNaN(Number(points))) {
-      return res.status(400).json({
-        message: "Pontuação inválida.",
-      });
-    }
-
-    if (!title || !group) {
-      return res.status(400).json({
-        message: "O título e o grupo da tarefa são obrigatórios.",
-      });
-    }
-
-    if (!isValidObjectId(group)) {
-      return res.status(400).json({
-        message: "ID de grupo inválido.",
-      });
-    }
-
-    const userId = req.user.id || req.user._id;
-
-    const groupExists = await Group.findOne({
-      _id: group,
-      $or: [{ creator: userId }, { "members.user": userId }],
-    });
-
-    if (!groupExists) {
-      return res.status(403).json({
-        message:
-          "Acesso negado. Você precisa ser membro deste grupo para criar tarefas nele.",
-      });
-    }
-
-    const task = await Task.create({
-      title,
-      description,
-      group,
-      points: points !== undefined ? Number(points) : 10,
-      deadline: deadline || null,
-    });
-
-    return res.status(201).json(task);
-  } catch (error) {
-    return res.status(400).json({
-      message: error.message,
-    });
-  }
-};
-
-// 2. Listar tarefas do usuário
-const getTasks = async (req, res) => {
-  try {
-
-    const userId = req.user.id || req.user._id;
-    const { groupId } = req.query;
-
-    const queryFilter = {};
-
-    if (groupId) {
-
-        if (!isValidObjectId(groupId)) {
+        // Campos obrigatórios
+        if (
+            !title?.trim() ||
+            !group ||
+            !startsAt ||
+            !deadline ||
+            points == null
+        ) {
             return res.status(400).json({
-                message: "ID de grupo inválido."
+                message: "Todos os campos obrigatórios devem ser preenchidos."
             });
         }
-
-        const groupExists = await Group.findOne({
-            _id: groupId,
-            $or: [
-                { creator: userId },
-                { "members.user": userId }
-            ]
-        });
-
-        if (!groupExists) {
+        // Datas
+        const startDate = new Date(startsAt);
+        const deadlineDate = new Date(deadline);
+        if (startDate >= deadlineDate) {
+            return res.status(400).json({
+                message: "O prazo deve ser posterior ao início da tarefa."
+            });
+        }
+        // Pontuação
+        if (points < 1) {
+            return res.status(400).json({
+                message: "A pontuação da tarefa deve ser maior que zero."
+            });
+        }
+        // Grupo
+        const existingGroup = await Group.findById(group); 
+        if (!existingGroup) {
+            return res.status(404).json({
+                message: "Grupo não encontrado."  
+            });
+        }
+        // Verifica se o usuário pertence ao grupo
+        const member = existingGroup.members.find(
+            member => member.user.toString() === req.user.id
+        );
+        if (!member) {
             return res.status(403).json({
-                message: "Você não pertence a este grupo."
+                message: "Você não faz parte deste grupo."
+            });
+        }
+        // Apenas administradores podem criar tarefas
+        if (member.role !== "admin") {
+            return res.status(403).json({
+                message: "Apenas administradores podem criar tarefas."
+            });
+        }
+        // Criação da tarefa
+        const task = await Task.create({
+            title: title.trim(),
+            description,
+            points,
+            group,
+            createdBy: req.user.id,
+            startsAt,
+            deadline,
+            isRecurring,
+            recurrence
+        });
+        return res.status(201).json({
+            message: "Tarefa criada com sucesso.",
+            task
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: "Erro interno do servidor."
+        });
+    }
+};
+
+// Listar tarefas dos grupos do usuário
+
+const getMyTasks = async (req, res) => {
+    try {
+
+        // Busca todos os grupos em que o usuário participa
+        const groups = await Group.find({
+            "members.user": req.user.id
+        }).select("_id");
+
+        const groupIds = groups.map(group => group._id);
+
+        // Data atual
+        const now = new Date();
+
+        // Busca apenas tarefas ativas
+        const tasks = await Task.find({
+            group: { $in: groupIds },
+            startsAt: { $lte: now },
+            deadline: { $gte: now }
+        })
+            .populate("group", "name")
+            .populate("createdBy", "name")
+            .sort({ deadline: 1 });
+
+        return res.status(200).json({
+            message: "Tarefas recuperadas com sucesso.",
+            tasks
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            message: "Erro interno do servidor."
+        });
+
+    }
+};
+
+// Histórico de tarefas do usuário
+
+const getTaskHistory = async (req, res) => {
+    try {
+
+        // Busca todos os grupos em que o usuário participa
+        const groups = await Group.find({
+            "members.user": req.user.id
+        }).select("_id");
+
+        const groupIds = groups.map(group => group._id);
+
+        // Data atual
+        const now = new Date();
+
+        // Busca apenas tarefas encerradas
+        const tasks = await Task.find({
+            group: { $in: groupIds },
+            deadline: { $lt: now }
+        })
+            .populate("group", "name")
+            .populate("createdBy", "name")
+            .sort({ deadline: -1 });
+
+        return res.status(200).json({
+            message: "Histórico de tarefas recuperado com sucesso.",
+            tasks
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            message: "Erro interno do servidor."
+        });
+
+    }
+};
+
+// Listar tarefas de um grupo específico
+
+const getGroupTasks = async (req, res) => {
+    try {
+
+        const { groupId } = req.params;
+
+        // Busca o grupo
+        const group = await Group.findById(groupId);
+
+        if (!group) {
+            return res.status(404).json({
+                message: "Grupo não encontrado."
             });
         }
 
-        queryFilter.group = groupId;
+        // Verifica se o usuário pertence ao grupo
+        const member = group.members.find(
+            member => member.user.toString() === req.user.id
+        );
+
+        if (!member) {
+            return res.status(403).json({
+                message: "Você não faz parte deste grupo."
+            });
+        }
+
+        // Busca as tarefas do grupo
+        const tasks = await Task.find({
+            group: groupId
+        })
+            .populate("group", "name")
+            .populate("createdBy", "name")
+            .sort({ deadline: 1 });
+
+        return res.status(200).json({
+            message: "Tarefas recuperadas com sucesso.",
+            tasks
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            message: "Erro interno do servidor."
+        });
+
     }
-
-const tasks = await Task.find(queryFilter);
-
-
-    return res.status(200).json(tasks);
-  } catch (error) {
-    return res.status(500).json({
-      message: error.message,
-    });
-  }
 };
 
-// 3. Atualizar dados gerais da tarefa (com suporte a Foto)
+// Detalhes de uma tarefa
+
+const getTaskById = async (req, res) => {
+    try {
+
+        const { id } = req.params;
+
+        // Busca a tarefa
+        const task = await Task.findById(id)
+            .populate("group", "name")
+            .populate("createdBy", "name");
+
+        if (!task) {
+            return res.status(404).json({
+                message: "Tarefa não encontrada."
+            });
+        }
+
+        // Busca o grupo da tarefa
+        const group = await Group.findById(task.group);
+
+        // Verifica se o usuário pertence ao grupo
+        const member = group.members.find(
+            member => member.user.toString() === req.user.id
+        );
+
+        if (!member) {
+            return res.status(403).json({
+                message: "Você não faz parte deste grupo."
+            });
+        }
+
+        return res.status(200).json({
+            message: "Tarefa recuperada com sucesso.",
+            task
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            message: "Erro interno do servidor."
+        });
+
+    }
+};
+
+// Atualizar uma tarefa
+
 const updateTask = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
 
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "ID de tarefa inválido.",
-      });
-    }
+        const { id } = req.params;
 
-    const userId = req.user.id || req.user._id;
-    const { title, description, deadline, points } = req.body;
+        const {
+            title,
+            description,
+            points,
+            startsAt,
+            deadline
+        } = req.body;
 
-    if (points !== undefined && isNaN(Number(points))) {
-      return res.status(400).json({
-        message: "Pontuação inválida.",
-      });
-    }
+        if (
+            req.body.isRecurring !== undefined ||
+            req.body.recurrence !== undefined
+        ) {
+            return res.status(400).json({
+                message: "A recorrência da tarefa não pode ser alterada após sua criação."
+            });
+        }
 
-    const task = await Task.findById(id);
+        // Busca a tarefa
+        const task = await Task.findById(id);
 
-    if (!task) {
-      return res.status(404).json({
-        message: "Tarefa não encontrada.",
-      });
-    }
+        if (!task) {
+            return res.status(404).json({
+                message: "Tarefa não encontrada."
+            });
+        }
 
-    const group = await Group.findById(task.group);
+        // Busca o grupo da tarefa
+        const group = await Group.findById(task.group);
 
-    if (!group) {
-        return res.status(404).json({
-            message: "Grupo não encontrado."
+        // Verifica se o usuário pertence ao grupo
+        const member = group.members.find(
+            member => member.user.toString() === req.user.id
+        );
+
+        if (!member) {
+            return res.status(403).json({
+                message: "Você não faz parte deste grupo."
+            });
+        }
+
+        // Apenas administradores podem editar
+        if (member.role !== "admin") {
+            return res.status(403).json({
+                message: "Apenas administradores podem editar tarefas."
+            });
+        }
+
+        // Validação da pontuação
+        if (points !== undefined && points < 1) {
+            return res.status(400).json({
+                message: "A pontuação da tarefa deve ser maior que zero."
+            });
+        }
+
+        // Validação das datas
+        const newStartsAt = startsAt !== undefined
+            ? new Date(startsAt)
+            : task.startsAt;
+
+        const newDeadline = deadline !== undefined
+            ? new Date(deadline)
+            : task.deadline;
+
+        if (newStartsAt >= newDeadline) {
+            return res.status(400).json({
+                message: "O prazo deve ser posterior ao início da tarefa."
+            });
+        }
+
+        // Atualiza apenas os campos enviados
+        if (title !== undefined) task.title = title.trim();
+        if (description !== undefined) task.description = description;
+        if (points !== undefined) task.points = points;
+        if (startsAt !== undefined) task.startsAt = startsAt;
+        if (deadline !== undefined) task.deadline = deadline;
+
+        await task.save();
+
+        return res.status(200).json({
+            message: "Tarefa atualizada com sucesso.",
+            task
         });
-    }
 
-    if (group.creator.toString() !== userId.toString()) {
-        return res.status(403).json({
-            message: "Somente o administrador do grupo pode editar tarefas."
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            message: "Erro interno do servidor."
         });
+
     }
-
-    if (title) {
-      task.title = title;
-    }
-
-    if (description !== undefined) {
-      task.description = description;
-    }
-
-    if (deadline !== undefined) {
-      task.deadline = deadline;
-    }
-
-    if (points !== undefined) {
-      task.points = Number(points);
-    }
-
-    await task.save();
-
-    return res.status(200).json(task);
-  } catch (error) {
-    return res.status(400).json({
-      message: error.message,
-    });
-  }
 };
 
-// 4. Excluir tarefa (e apagar imagem do Cloudinary se existir)
+// Excluir uma tarefa
+
 const deleteTask = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
 
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "ID de tarefa inválido.",
-      });
-    }
+        const { id } = req.params;
 
-    const userId = req.user.id || req.user._id;
-    const task = await Task.findById(id);
+        // Busca a tarefa
+        const task = await Task.findById(id);
 
-    if (!task) {
-      return res.status(404).json({
-        message: "Tarefa não encontrada.",
-      });
-    }
+        if (!task) {
+            return res.status(404).json({
+                message: "Tarefa não encontrada."
+            });
+        }
 
-    const group = await Group.findById(task.group);
+        // Busca o grupo da tarefa
+        const group = await Group.findById(task.group);
 
-    if (!group) {
-        return res.status(404).json({
-            message: "Grupo não encontrado."
+        // Verifica se o usuário pertence ao grupo
+        const member = group.members.find(
+            member => member.user.toString() === req.user.id
+        );
+
+        if (!member) {
+            return res.status(403).json({
+                message: "Você não faz parte deste grupo."
+            });
+        }
+
+        // Apenas administradores podem excluir
+        if (member.role !== "admin") {
+            return res.status(403).json({
+                message: "Apenas administradores podem excluir tarefas."
+            });
+        }
+
+        // TODO:
+        // Verificar se existem TaskSubmissions vinculadas a esta tarefa.
+        // Caso existam, impedir a exclusão.
+
+        await Task.findByIdAndDelete(id);
+
+        return res.status(200).json({
+            message: "Tarefa excluída com sucesso."
         });
-    }
 
-    if (group.creator.toString() !== userId.toString()) {
-        return res.status(403).json({
-            message: "Somente o administrador pode excluir tarefas."
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            message: "Erro interno do servidor."
         });
-    } 
 
-    await Task.findByIdAndDelete(id);
-
-    return res.status(200).json({
-      message: "Tarefa excluída com sucesso.",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// Listar todas as submissões de uma tarefa
-const getTaskSubmissions = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "ID de tarefa inválido.",
-      });
     }
-
-    const userId = req.user.id || req.user._id;
-
-    const task = await Task.findById(id)
-      .populate("submissions.user", "name email profileImage");
-
-    if (!task) {
-      return res.status(404).json({
-        message: "Tarefa não encontrada.",
-      });
-    }
-
-    // Verifica se o usuário pertence ao grupo
-    const group = await Group.findOne({
-      _id: task.group,
-      $or: [
-        { creator: userId },
-        { "members.user": userId },
-      ],
-    });
-
-    if (!group) {
-      return res.status(403).json({
-        message: "Você não pertence a este grupo.",
-      });
-    }
-
-    return res.status(200).json({
-      taskId: task._id,
-      title: task.title,
-      submissions: task.submissions,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: error.message,
-    });
-  }
 };
 
 module.exports = {
-  createTask,
-  getTasks,
-  updateTask,
-  deleteTask,
+    createTask,
+    getMyTasks,
+    getTaskHistory,
+    getGroupTasks,
+    getTaskById,
+    updateTask,
+    deleteTask
 };

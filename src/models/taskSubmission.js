@@ -1,80 +1,99 @@
 const mongoose = require("mongoose");
 
 const taskSubmissionSchema = new mongoose.Schema(
+
     {
         task: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Task",
             required: [true, "A tarefa é obrigatória."]
         },
-
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             required: [true, "O usuário é obrigatório."]
         },
-
-        status: {
-            type: String,
-            enum: [
-                "Pendente",
-                "Enviada",
-                "Aceita",
-                "Contestada"
-            ],
-            default: "Pendente",
-            required: true
-        },
-
         evidence: {
             url: {
                 type: String,
-                default: ""
+                required: [true, "A imagem da evidência é obrigatória."]
             },
 
             publicId: {
                 type: String,
-                default: ""
+                required: [true, "O identificador da imagem é obrigatório."]
             }
         },
-
-        feedback: {
+        status: {
             type: String,
-            default: "",
-            trim: true,
-            maxlength: [500, "O feedback deve ter no máximo 500 caracteres."]
+            enum: [
+                "submitted",
+                "voting",
+                "completed",
+                "invalid"
+            ],
+            default: "submitted"
         },
+        contestation: {
+            reason: {
+                type: String,
+                default: "",
+                trim: true,
+                maxlength: [500, "O motivo da contestação deve possuir no máximo 500 caracteres."]
+            },
 
-        submittedAt: {
+            createdBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                default: null
+            },
+
+            createdAt: {
+                type: Date,
+                default: null
+            }
+        },
+        votes: [
+            {
+                user: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "User",
+                    required: true
+                },
+
+                decision: {
+                    type: String,
+                    enum: ["valid", "invalid"],
+                    required: true
+                },
+
+                votedAt: {
+                    type: Date,
+                    default: Date.now
+                }
+            }
+        ],
+        pointsGranted: {
+            type: Boolean,
+            default: false
+        },
+        validatedAt: {
             type: Date,
             default: null
         },
 
-        reviewedAt: {
-            type: Date,
-            default: null
-        },
-
-        reviewer: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-            default: null
-        }
     },
+
     {
         timestamps: true
     }
+
 );
 
-// Impede que um usuário envie duas submissões para a mesma tarefa
+
 taskSubmissionSchema.index(
-    {
-        task: 1,
-        user: 1
-    },
-    {
-        unique: true
-    }
+    { task: 1, user: 1 },
+    { unique: true }
 );
 
 module.exports = mongoose.model("TaskSubmission", taskSubmissionSchema);
