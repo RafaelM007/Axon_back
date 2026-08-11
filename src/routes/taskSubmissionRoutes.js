@@ -1,36 +1,37 @@
 const express = require("express");
 const router = express.Router();
 
-const {
-  createTask,
-  getTasks,
-  updateTask,
-  deleteSubmission,
-  contestTask,
-  getTaskSubmissions,
-} = require("../controllers/taskController");
-
+const taskSubmissionController = require("../controllers/taskSubmissionController");
 const authMiddleware = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 
-router.use(authMiddleware);
 
-// Criar uma tarefa (criador do grupo)
-router.post("/", createTask);
+// Enviar evidência
+router.post(
+    "/",
+    authMiddleware,
+    upload.single("evidence"),
+    taskSubmissionController.submitEvidence
+);
 
-// Listar tarefas
-// router.get("/", getTasks); 
+// Minhas evidências
+router.get("/my", authMiddleware, taskSubmissionController.getMySubmissions);
 
-// Enviar evidência da tarefa
-router.put("/:id", upload.single("image"), updateTask);
 
-// Remover minha evidência
-//router.delete("/:id/submission", deleteSubmission);
+// Evidências pendentes para validação
+router.get("/pending", authMiddleware, taskSubmissionController.getPendingValidations);
 
-// Contestar uma evidência
-//router.patch("/:id/contest", contestTask);
 
-// Listar todas as evidências da tarefa
-//router.get("/:id/submissions", getTaskSubmissions);
+// Detalhes de uma evidência
+router.get("/:id", authMiddleware, taskSubmissionController.getSubmissionById);
+
+
+// Primeira validação: aprovar ou contestar
+router.patch("/:id/validate", authMiddleware, taskSubmissionController.validateSubmission);
+
+
+// Votar em uma contestação
+router.patch("/:id/vote", authMiddleware, taskSubmissionController.voteSubmission);
+
 
 module.exports = router;

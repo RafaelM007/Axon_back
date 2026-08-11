@@ -27,14 +27,13 @@ const taskSubmissionSchema = new mongoose.Schema(
         status: {
             type: String,
             enum: [
-                "submitted",
+                "accepted",
                 "voting",
-                "completed",
-                "invalid"
+                "invalidated"
             ],
-            default: "submitted"
+            default: "accepted"
         },
-        contestation: {
+        contest: {
             reason: {
                 type: String,
                 default: "",
@@ -51,6 +50,10 @@ const taskSubmissionSchema = new mongoose.Schema(
             createdAt: {
                 type: Date,
                 default: null
+            },
+            resolved: {
+                type: Boolean,
+                default: false
             }
         },
         votes: [
@@ -63,7 +66,7 @@ const taskSubmissionSchema = new mongoose.Schema(
 
                 decision: {
                     type: String,
-                    enum: ["valid", "invalid"],
+                    enum: ["accepted", "invalidated"],
                     required: true
                 },
 
@@ -73,14 +76,45 @@ const taskSubmissionSchema = new mongoose.Schema(
                 }
             }
         ],
-        pointsGranted: {
+        initialValidations: [
+            {
+                user: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "User",
+                    required: true
+                },
+
+                action: {
+                    type: String,
+                    enum: [
+                        "approved",
+                        "contested"
+                    ],
+                    required: true
+                },
+
+                createdAt: {
+                    type: Date,
+                    default: Date.now
+                }
+            }
+        ],
+        rewardProcessed:{ // Indica se a recompensa já foi processada
             type: Boolean,
             default: false
         },
-        validatedAt: {
+        finishedAt: {
             type: Date,
             default: null
         },
+        finalDecision: {
+            type: String,
+            enum: [
+                "accepted",
+                "invalidated"
+            ],
+            default: null
+        }
 
     },
 

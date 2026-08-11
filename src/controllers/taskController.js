@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const Group = require("../models/Group");
+const TaskSubmission = require("../models/TaskSubmission");
 
 // criar uma nova tarefa
 
@@ -405,11 +406,19 @@ const deleteTask = async (req, res) => {
             return res.status(403).json({
                 message: "Apenas administradores podem excluir tarefas."
             });
+        }  
+
+
+        const hasSubmissions = await TaskSubmission.exists({
+            task: id
+        });
+
+        if (hasSubmissions) {
+            return res.status(409).json({
+                message: "Não é possível excluir uma tarefa que possui evidências."
+            });
         }
 
-        // TODO:
-        // Verificar se existem TaskSubmissions vinculadas a esta tarefa.
-        // Caso existam, impedir a exclusão.
 
         await Task.findByIdAndDelete(id);
 
