@@ -3,44 +3,48 @@ const cron = require("node-cron");
 const TaskSubmission = require("../models/TaskSubmission");
 
 const { finishVoting } = require("../services/taskVotingService");
+const taskVotingJob = cron.schedule(
+    "* * * * *",
+    async () => {
 
+        try {
 
-const taskVotingJob = cron.schedule("* * * * *", async () => {
+            const now = new Date();
 
-    try {
+            const submissions = await TaskSubmission.find({
+                status: "voting",
+                "contest.resolved": false
+            }).populate({
+                path: "task",
+                select: "deadline"
+            });
 
-        const now = new Date();
+            for (const submission of submissions) {
 
-        const submissions = await TaskSubmission.find({
-            status: "voting",
-            "contest.resolved": false
-        }).populate({
-            path: "task",
-            select: "deadline"
-        });
+                if (!submission.task) {
+                    continue;
+                }
 
-        for (const submission of submissions) {
+                if (now >= submission.task.deadline) {
 
-            if (!submission.task) {
-                continue;
+                    await finishVoting(submission);
+
+                    console.log(
+                        `Votação finalizada automaticamente: ${submission._id}`
+                    );
+                }
             }
 
-            if (now >= submission.task.deadline) {
+        } catch (error) {
 
-                await finishVoting(submission);
-
-                console.log(
-                    `Votação finalizada automaticamente: ${submission._id}`
-                );
-            }
+            console.error(
+                "Erro ao processar votações vencidas:",
+                error
+            );
         }
 
-    } catch (error) {
-
-        console.error(
-            "Erro ao processar votações vencidas:",
-            error
-        );
+    },
+    {
+        timezone: "America/Sao_Paulo"
     }
-
-});
+);

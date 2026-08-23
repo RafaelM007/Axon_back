@@ -17,6 +17,8 @@ router.patch(
     upload.single("profileImage"),
     userController.updateProfileImage
 );
+
+
 router.patch(
     "/change-password",
     authMiddleware,

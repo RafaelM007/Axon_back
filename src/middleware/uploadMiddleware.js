@@ -10,6 +10,11 @@ const upload = multer({
     },
 
     fileFilter: (req, file, cb) => {
+        console.log("Arquivo recebido:", {
+        originalname: file.originalname,
+        mimetype: file.mimetype
+    });
+        
         if (file.mimetype.startsWith("image/")) {
             cb(null, true);
         } else {

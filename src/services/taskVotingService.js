@@ -1,6 +1,12 @@
+const { updateMemberPoints } = require("./groupPointsService");
+
 const finishVoting = async (submission) => {
 
-    const acceptedVotes = submission.votes.filter(
+    if (submission.contest.resolved) {
+        return submission;
+    }
+
+    const acceptedVotes = submission.votes.filter( 
         vote => vote.decision === "accepted"
     ).length;
 
@@ -24,6 +30,25 @@ const finishVoting = async (submission) => {
     submission.finishedAt = new Date();
 
     submission.contest.resolved = true;
+
+    // Contestação aceita → autor perde os pontos da tarefa.
+    if (finalDecision === "invalidated") {
+        await updateMemberPoints(
+            submission.task.group,
+            submission.user,
+            -submission.task.points
+        );
+    }
+
+    // Contestação rejeitada → contestador perde o +1 recebido.
+    if (finalDecision === "accepted") {
+        await updateMemberPoints(
+            submission.task.group,
+            submission.contest.createdBy,
+            -1
+        );
+    }
+
 
 
     await submission.save();

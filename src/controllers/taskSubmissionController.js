@@ -4,6 +4,7 @@ const Group = require("../models/Group");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
 const { finishVoting } = require("../services/taskVotingService");
+const { updateMemberPoints } = require("../services/groupPointsService");
 
 // 1. Enviar evidência
 
@@ -111,10 +112,21 @@ const submitEvidence = async (req, res) => {
             }
         });
 
+        await updateMemberPoints(
+            taskData.group._id,
+            req.user.id,
+            taskData.points
+        );
+
+        submission.rewardProcessed = true;
+        await submission.save();
+
         return res.status(201).json({
             message: "Evidência enviada com sucesso.",
             submission
         });
+
+        
 
     } catch (error) {
 
@@ -388,6 +400,12 @@ const validateSubmission = async (req, res) => {
 
         await submission.save();
 
+        await updateMemberPoints(
+            submission.task.group,
+            req.user.id,
+            1
+        );
+
         return res.status(200).json({
             message:
                 action === "approved"
@@ -396,6 +414,8 @@ const validateSubmission = async (req, res) => {
 
             submission
         });
+
+       
 
     } catch (error) {
 
@@ -430,7 +450,7 @@ const voteSubmission = async (req, res) => {
         const submission = await TaskSubmission.findById(id)
             .populate({
                 path: "task",
-                select: "group deadline"
+                select: "group deadline points"
             });
 
         if (!submission) {

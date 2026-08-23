@@ -58,6 +58,10 @@ const groupSchema = new mongoose.Schema(
                   default: 0,
                   min: 0
               },
+              pointsUpdatedAt: {
+                  type: Date,
+                  default: Date.now
+            },
               role: {
                   type: String,
                   enum: ["admin", "member"],
