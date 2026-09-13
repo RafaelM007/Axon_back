@@ -1,6 +1,7 @@
 const express = require("express");
 
 const swaggerUi = require("swagger-ui-express");
+const cors = require("cors");
 const swaggerSpec = require("./config/swagger");
 const userRoutes = require("./routes/userRoutes");
 const groupRoutes = require("./routes/groupRoutes"); 
@@ -9,6 +10,12 @@ const rankingRoutes = require("./routes/rankingRoutes");
 const taskSubmissionRoutes = require("./routes/taskSubmissionRoutes");
 
 const app = express();
+
+app.use(
+    cors({
+        origin: "http://localhost:8081"
+    })
+);
 
 app.use(express.json());
 
