@@ -419,6 +419,13 @@ const updateMemberRole = async (req, res) => {
             });
         }
 
+        // O criador deve permanecer administrador
+        if (group.creator.toString() === userId.toString()) {
+            return res.status(400).json({
+                message: "O cargo do criador do grupo não pode ser alterado."
+            });
+        }
+
         // Procura o membro
         const member = group.members.find(
             member => member.user.toString() === userId.toString()
