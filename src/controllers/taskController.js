@@ -33,11 +33,36 @@ const createTask = async (req, res) => {
         // Datas
         const startDate = new Date(startsAt);
         const deadlineDate = new Date(deadline);
+
+        // Verifica se as datas recebidas são válidas
+        if (
+            Number.isNaN(startDate.getTime()) ||
+            Number.isNaN(deadlineDate.getTime())
+        ) {
+            return res.status(400).json({
+                message: "Data de início ou prazo inválido."
+            });
+        }
+
+        // Tolerância de 5 minutos para o tempo de preenchimento do formulário
+        const fiveMinutesAgo = new Date(
+            Date.now() - 5 * 60 * 1000
+        );
+
+        // O objetivo não pode começar no passado
+        if (startDate < fiveMinutesAgo) {
+            return res.status(400).json({
+                message: "O início da tarefa não pode estar no passado."
+            });
+        }
+
+        // O prazo precisa ser posterior ao início
         if (startDate >= deadlineDate) {
             return res.status(400).json({
                 message: "O prazo deve ser posterior ao início da tarefa."
             });
         }
+
         // Pontuação
         if (points < 1) {
             return res.status(400).json({
@@ -340,6 +365,32 @@ const updateTask = async (req, res) => {
             ? new Date(deadline)
             : task.deadline;
 
+        // Verifica se as datas são válidas
+        if (
+            Number.isNaN(newStartsAt.getTime()) ||
+            Number.isNaN(newDeadline.getTime())
+        ) {
+            return res.status(400).json({
+                message: "Data de início ou prazo inválido."
+            });
+        }
+
+        // Tolerância de 5 minutos
+        const fiveMinutesAgo = new Date(
+            Date.now() - 5 * 60 * 1000
+        );
+
+        // Só impede data passada se o início estiver sendo alterado
+        if (
+            startsAt !== undefined &&
+            newStartsAt < fiveMinutesAgo
+        ) {
+            return res.status(400).json({
+                message: "O início da tarefa não pode ser alterado para uma data no passado."
+            });
+        }
+
+        // O prazo continua precisando ser posterior ao início
         if (newStartsAt >= newDeadline) {
             return res.status(400).json({
                 message: "O prazo deve ser posterior ao início da tarefa."
