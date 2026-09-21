@@ -166,6 +166,7 @@ const getMySubmissions = async (req, res) => {
 
 
 // 3. Buscar evidências pendentes para validação
+    // 3. Buscar evidências pendentes para validação
 
 const getPendingValidations = async (req, res) => {
     try {
@@ -175,23 +176,47 @@ const getPendingValidations = async (req, res) => {
         }).select("_id");
 
         const groupIds = groups.map(group => group._id);
+            const submissions = await TaskSubmission.find({
+                // Não pode ser a própria evidência
+                user: { $ne: req.user.id },
 
-        const submissions = await TaskSubmission.find({
-            // Não pode ser a própria evidência
-            user: { $ne: req.user.id },
+                $or: [
+                    {
+                        // Validação inicial
+                        status: "accepted",
 
-            // A evidência ainda está na etapa de validação inicial
-            status: "accepted",
+                        // O usuário ainda não validou
+                        initialValidations: {
+                            $not: {
+                                $elemMatch: {
+                                    user: req.user.id
+                                }
+                            }
+                        }
+                    },
+                    {
+                        // Evidência contestada e em votação
+                        status: "voting",
 
-            // O usuário ainda não tomou uma decisão sobre ela
-            initialValidations: {
-                $not: {
-                    $elemMatch: {
-                        user: req.user.id
+                        // A votação ainda está aberta
+                        "contest.resolved": false,
+
+                        // Quem contestou não pode votar
+                        "contest.createdBy": {
+                            $ne: req.user.id
+                        },
+
+                        // O usuário ainda não votou
+                        votes: {
+                            $not: {
+                                $elemMatch: {
+                                    user: req.user.id
+                                }
+                            }
+                        }
                     }
-                }
-            }
-        })
+                ]
+            })
             .populate({
                 path: "task",
                 match: {
@@ -205,6 +230,7 @@ const getPendingValidations = async (req, res) => {
                 }
             })
             .populate("user", "name profileImage")
+            .populate("contest.createdBy", "name profileImage")
             .sort({ createdAt: -1 });
 
         const pendingSubmissions = submissions.filter(
