@@ -1,6 +1,6 @@
 const cron = require("node-cron");
 
-const TaskSubmission = require("../models/TaskSubmission");
+const TaskSubmission = require("../models/taskSubmission");
 
 const { finishVoting } = require("../services/taskVotingService");
 const taskVotingJob = cron.schedule(

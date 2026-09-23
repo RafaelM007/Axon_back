@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const Group = require("../models/Group");
-const TaskSubmission = require("../models/TaskSubmission");
+const TaskSubmission = require("../models/taskSubmission");
 
 // criar uma nova tarefa
 

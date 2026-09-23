@@ -1,4 +1,4 @@
-const TaskSubmission = require("../models/TaskSubmission");
+const TaskSubmission = require("../models/taskSubmission");
 const Task = require("../models/Task");
 const Group = require("../models/Group");
 const cloudinary = require("../config/cloudinary");
