@@ -38,7 +38,7 @@ A API conta com documentação interativa desenvolvida com Swagger.
 
 Desenvolvido como parte do projeto **Axon**, apresentado na 45ª Feira Tecnológica do Inatel (FETIN).
 
-**Frontend:** [Axon Mobile](https://github.com/Lavnia005/axon-mobile)
+- **Frontend:** [Axon Mobile](https://github.com/RafaelM007/axon-mobile)
 
 ---
 
